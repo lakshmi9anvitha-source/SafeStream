@@ -1,0 +1,16 @@
+{"text": "dick", "label": "insult", "prob": 0.48548299074172974, "ts": 1764254687.3953764}
+{"text": "hell yeah", "label": "toxic", "prob": 0.5771321058273315, "ts": 1764255248.5469491}
+{"text": "kiss my ass", "label": "severe_toxic", "prob": 0.44624030590057373, "ts": 1764255700.6879716}
+{"text": "suxk my dick", "label": "severe_toxic", "prob": 0.38591477274894714, "ts": 1764256929.353832}
+{"text": "sex", "label": "obscene", "prob": 0.39225974678993225, "ts": 1764256954.4388785}
+{"text": "ass", "label": "insult", "prob": 0.5757471919059753, "ts": 1764258377.723445}
+{"text": "porn hub", "label": "toxic", "prob": 0.5161852240562439, "ts": 1764259098.7162445}
+{"text": "ass", "label": "insult", "prob": 0.5757471919059753, "ts": 1764259267.1500785}
+{"text": "ass", "label": "insult", "prob": 0.5757471919059753, "ts": 1764259277.0824454}
+{"text": "ass", "label": "insult", "prob": 0.5757471919059753, "ts": 1764259283.8901305}
+{"text": "dick", "label": "insult", "prob": 0.48548299074172974, "ts": 1764260024.7784297}
+{"text": "dont cry baby", "label": "toxic", "prob": 0.35291561484336853, "ts": 1764260138.8679934}
+{"text": "my n bb s", "label": "obscene", "prob": 0.5183334946632385, "ts": 1764261904.4181418}
+{"text": "dumb", "label": "insult", "prob": 0.40696072578430176, "ts": 1764261973.454713}
+{"text": "ass", "label": "insult", "prob": 0.5757471919059753, "ts": 1764267169.1943789}
+{"text": "ok fuck off brother", "label": "severe_toxic", "prob": 0.4510757625102997, "ts": 1764305429.8444083}

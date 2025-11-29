@@ -1,0 +1,7 @@
+author,text,clean_text,pred_label,pred_prob,bad_words,reason_list,warnings_for_user,fetched_at,highlighted_text,safe_users,blocked_users
+@saimeghana7881,helloo,helloo,0,0.006053317803889513,hell,['BadWords'],0,2025-11-27T17:18:06.675956+00:00,helloo,[],[]
+@saimeghana7881,he is so fucking good,he is so fucking good,0,0.0018077045679092407,"fucking,fuck,fuckin",['BadWords'],0,2025-11-27T17:18:23.482342+00:00,he is so **fucking** good,[],[]
+@saimeghana7881,asshole,asshole,0,0.0008885638671927154,"asshole,ho,ass",['BadWords'],0,2025-11-27T17:19:27.481142+00:00,**asshole**,[],[]
+@Rojyusuf_6556,zxv,zxv,0,0.005145367234945297,,[],0,2025-11-27T17:19:37.186349+00:00,zxv,[],[]
+@saimeghana7881,you are an ass,you are an ass,0,0.0005759006016887724,"yo,ass",['BadWords'],0,2025-11-27T17:19:53.451093+00:00,you are an **ass**,[],[]
+@saimeghana7881,"you are such an asshole ,i hate you",you are such an asshole i hate you,0,0.00036671789712272584,"asshole,ho,ass,yo",['BadWords'],0,2025-11-27T17:20:13.339178+00:00,"you are such an **asshole** ,i hate you",[],[]

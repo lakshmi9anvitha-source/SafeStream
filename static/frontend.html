@@ -1,0 +1,450 @@
+<!-- static/frontend.html (updated: working Export / Clear / Download uncertain) -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SafeStream — Live Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body{margin:0;font-family:Inter,system-ui;background:linear-gradient(180deg,#041427,#071827);color:#eaf2ff}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.02));border:1px solid rgba(255,255,255,0.03);border-radius:12px;padding:12px}
+    .masked { display:inline-block; cursor:pointer; border-radius:6px; }
+    .masked .mask { padding:2px 6px; border-radius:6px; background:rgba(255,255,255,0.03); letter-spacing:2px; user-select:none; color:transparent; }
+    .masked .orig { display:none; color:#ffd36b; font-weight:800; padding:2px 6px; border-radius:6px; }
+    .masked.revealed .mask{display:none;} .masked.revealed .orig{display:inline-block;}
+    .flagged{border-left:4px solid rgba(255,90,90,0.95); padding-left:10px}
+    .btn{padding:8px 10px;border-radius:8px}
+    .primary{background:linear-gradient(90deg,#ff7b7b,#06b6d4);color:#08101a;font-weight:800}
+    .muted{color:#9fb0c9}
+    pre{margin:0;white-space:pre-wrap;word-break:break-word}
+    /* small responsiveness tweaks */
+    @media (max-width: 900px) {
+      .max-w-6xl { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="max-w-6xl mx-auto p-6">
+    <header class="flex items-center justify-between mb-6">
+      <div style="display:flex;gap:14px;align-items:center">
+        <div style="width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#ff7b7b,#06b6d4);display:grid;place-items:center;font-weight:900;color:white">HS</div>
+        <div>
+          <h1 style="font-size:24px;margin:0">HateShield</h1>
+          <div id="smallStatus" class="muted">Model: - · Chat: -</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div id="status" class="muted">Not connected</div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <div style="background:linear-gradient(90deg,#ff7b7b,#ffb86b);padding:6px 10px;border-radius:999px;font-weight:800;color:#08101a">Toxic: <span id="toxicCount">0</span></div>
+          <div style="background:linear-gradient(90deg,#facc15,#f97316);padding:6px 10px;border-radius:999px;font-weight:800;color:#042018">Warnings: <span id="warnCount">0</span></div>
+          <div style="background:linear-gradient(90deg,#0f1724,#334155);padding:6px 10px;border-radius:999px;font-weight:800;color:#e2e8f0">Blocked: <span id="blockedCount">0</span></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <section class="lg:col-span-3 space-y-4">
+        <div class="card">
+          <div style="display:flex;gap:8px">
+            <input id="urlInput" placeholder="YouTube URL (live or watch)" style="flex:1;padding:10px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:inherit"/>
+            <button id="applyBtn" class="btn primary">Apply URL</button>
+            <button id="testBtn" class="btn" style="border:1px solid rgba(255,255,255,0.04)">Test</button>
+          </div>
+          <div class="muted" style="margin-top:8px">Extracted ID: <span id="videoIdDisplay">—</span></div>
+        </div>
+
+        <div id="commentsWrap" class="card" style="height:68vh;overflow:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h2 style="margin:0">Live comments</h2>
+            <div class="muted" id="streamInfo">Latest first</div>
+          </div>
+          <div id="comments" style="display:flex;flex-direction:column;gap:12px"></div>
+        </div>
+      </section>
+
+      <aside class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3 style="margin:0">Blocked users</h3>
+          <div id="blockedCountTop" class="muted">0</div>
+        </div>
+        <div id="blockedList" style="margin-top:8px" class="muted">No blocked users</div>
+
+        <hr style="margin:12px 0;border-color:rgba(255,255,255,0.03)"/>
+
+        <h3 style="margin:0">Safe users (limit 3)</h3>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="safeInput" placeholder="username" style="flex:1;padding:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);border-radius:8px;color:inherit"/>
+          <button id="addSafeBtn" class="btn primary">Add</button>
+        </div>
+        <div id="safeList" style="margin-top:8px" class="muted">No safe users</div>
+
+        <hr style="margin:12px 0;border-color:rgba(255,255,255,0.03)"/>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button id="exportFlags" class="btn" style="border:1px solid rgba(255,255,255,0.04)">Export flagged CSV</button>
+          <button id="clearComments" class="btn" style="border:1px solid rgba(255,255,255,0.04)">Clear UI</button>
+          <button id="downloadUncertain" class="btn" style="border:1px solid rgba(255,255,255,0.04)">Download uncertain</button>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+<script>
+  // -------------------------
+  // DOM refs & state
+  // -------------------------
+  const commentsEl = document.getElementById('comments');
+  const statusEl = document.getElementById('status');
+  const smallStatusEl = document.getElementById('smallStatus');
+  const urlInput = document.getElementById('urlInput');
+  const applyBtn = document.getElementById('applyBtn');
+  const testBtn = document.getElementById('testBtn');
+  const videoIdDisplay = document.getElementById('videoIdDisplay');
+  const blockedListEl = document.getElementById('blockedList');
+  const blockedCountEl = document.getElementById('blockedCount');
+  const blockedCountTopEl = document.getElementById('blockedCountTop');
+  const safeInput = document.getElementById('safeInput');
+  const addSafeBtn = document.getElementById('addSafeBtn');
+  const safeListEl = document.getElementById('safeList');
+  const toxicCountEl = document.getElementById('toxicCount');
+  const warnCountEl = document.getElementById('warnCount');
+
+  const exportFlagsBtn = document.getElementById('exportFlags');
+  const clearCommentsBtn = document.getElementById('clearComments');
+  const downloadUncertainBtn = document.getElementById('downloadUncertain');
+
+  let evtSource = null;
+  let allComments = [];           // stored newest first
+  let currentBlocked = [];
+  let currentSafe = [];
+  let toxicCount = 0;
+  const MAX_STORE = 1200;
+
+  function escapeHtml(unsafe){ if(unsafe==null) return ''; return unsafe.toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function extractYoutubeId(url){ if(!url) return null; const m = url.match(/(?:v=|\/live\/|youtu\.be\/|\/watch\?v=|\/)([0-9A-Za-z_-]{11})/); return m ? m[1] : null; }
+
+  // frontend expects backend to put **token** around offensive tokens; we mask them and reveal on click
+  function renderMasked(textWithStars){
+    const escaped = escapeHtml(textWithStars || '');
+    return escaped.replace(/\*\*(.+?)\*\*/g, (_, inner) => {
+      const safe = inner.replace(/"/g,'&quot;'); // backend supplies deobfuscated token inside **
+      return `<span class="masked" tabindex="0" role="button"><span class="mask">••••</span><span class="orig">${safe}</span></span>`;
+    });
+  }
+
+  // -------------------------
+  // SSE / streaming
+  // -------------------------
+  function handleBroadcast(raw){
+    if(raw.type === 'blocked_update'){ updateBlockedUI(raw.blocked_users || []); return; }
+    if(raw.type === 'safe_update'){ updateSafeUI(raw.safe_users || []); return; }
+    addComment(raw);
+    if(raw.blocked_users) updateBlockedUI(raw.blocked_users || []);
+    if(raw.safe_users) updateSafeUI(raw.safe_users || []);
+  }
+
+  function startSSE(){
+    if(evtSource){ try{ evtSource.close(); }catch(e){} }
+    evtSource = new EventSource("/stream");
+    evtSource.onopen = () => { statusEl.innerText = 'Connected'; statusEl.style.color = '#7ee3b0'; };
+    evtSource.onerror = () => { statusEl.innerText = 'Disconnected — retrying...'; statusEl.style.color = '#ff8a8a'; };
+    evtSource.onmessage = (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        handleBroadcast(payload);
+      } catch(err) {
+        console.error('SSE parse error', err);
+      }
+    };
+  }
+
+  // -------------------------
+  // comment handling & rendering
+  // -------------------------
+  function addComment(payload){
+    const item = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+      ts: payload.fetched_at || new Date().toISOString(),
+      author: payload.author || 'unknown',
+      text: payload.text || '',
+      highlighted_text: payload.highlighted_text || '',
+      warnings: payload.warnings_for_user || 0,
+      reason_list: payload.reason_list || [],
+      flagged: !!payload.pred_label,
+      prob: payload.pred_prob || 0.0,
+      safe: (payload.safe_users || []).includes(payload.author)
+    };
+
+    // hide messages from blocked users
+    if(currentBlocked.includes(item.author)) return;
+
+    // prepend
+    allComments.unshift(item);
+    if(allComments.length > MAX_STORE) allComments.pop();
+
+    // update counts
+    if(item.flagged && !item.safe){ toxicCount++; toxicCountEl.innerText = toxicCount; }
+    warnCountEl.innerText = item.warnings || 0;
+
+    renderComments();
+  }
+
+  function renderComments(){
+    commentsEl.innerHTML = '';
+    if(!allComments.length){
+      const el = document.createElement('div');
+      el.className = 'muted';
+      el.textContent = 'No comments yet.';
+      commentsEl.appendChild(el);
+      return;
+    }
+
+    for(const c of allComments){
+      const card = document.createElement('div');
+      card.className = 'comment-card';
+      if(c.flagged && !c.safe) card.classList.add('flagged');
+
+      const avatar = `<div style="width:44px;height:44px;border-radius:999px;display:grid;place-items:center;background:linear-gradient(135deg,#ff7b7b,#06b6d4);font-weight:700">${escapeHtml((c.author||'#').slice(0,1).toUpperCase())}</div>`;
+      const header = `<div style="font-weight:700">${escapeHtml(c.author)}</div><div class="muted" style="font-size:12px">${new Date(c.ts).toLocaleTimeString()}</div>`;
+      const flags = (c.reason_list && c.reason_list.length) ? `<div style="color:#ffd36b;margin-top:6px">flags: ${escapeHtml(c.reason_list.join(', '))}</div>` : '';
+      const probHtml = c.prob ? `<div style="color:#fca5a5;margin-top:6px;font-weight:700">toxic: ${(c.prob*100).toFixed(1)}%</div>` : '';
+
+      const contentHtml = c.highlighted_text ? renderMasked(c.highlighted_text) : escapeHtml(c.text);
+
+      card.innerHTML = `<div style="display:flex;gap:12px;align-items:flex-start">
+        ${avatar}
+        <div style="flex:1">
+          <div style="display:flex;gap:8px;align-items:center">${header}</div>
+          <div style="margin-top:8px"><pre style="margin:0;white-space:pre-wrap">${contentHtml}</pre></div>
+          ${flags}
+          ${probHtml}
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button class="btn copy-btn" data-id="${c.id}">Copy</button>
+            <button class="btn block-btn" data-author="${escapeHtml(c.author)}">Block</button>
+            <button class="btn fp-btn" data-text="${escapeHtml(c.text)}" data-author="${escapeHtml(c.author)}">Mark FP</button>
+          </div>
+        </div>
+      </div>`;
+
+      // attach interactivity after inserting
+      setTimeout(()=> {
+        card.querySelectorAll('.masked').forEach(el => {
+          el.addEventListener('click', ()=> el.classList.toggle('revealed'));
+          el.addEventListener('keydown', (ev)=> { if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); el.classList.toggle('revealed'); }});
+        });
+
+        card.querySelectorAll('.copy-btn').forEach(b => {
+          b.addEventListener('click', async ()=> {
+            try {
+              const text = allComments.find(x=>x.id===b.dataset.id).text || '';
+              await navigator.clipboard.writeText(text);
+              b.innerText = 'Copied'; setTimeout(()=> b.innerText = 'Copy', 1200);
+            } catch(e){ console.error(e); }
+          });
+        });
+
+        card.querySelectorAll('.block-btn').forEach(b => {
+          b.addEventListener('click', async ()=> {
+            const author = b.dataset.author;
+            if(!confirm('Block user ' + author + '?')) return;
+            try {
+              const r = await fetch('/block', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user: author })});
+              if(r.ok){
+                const j = await r.json();
+                updateBlockedUI(j.blocked_users || []);
+              } else { alert('Block failed'); }
+            } catch(e){ alert('Block failed'); }
+          });
+        });
+
+        card.querySelectorAll('.fp-btn').forEach(b => {
+          b.addEventListener('click', async ()=> {
+            const text = b.dataset.text;
+            const author = b.dataset.author;
+            try {
+              await fetch('/fp_report', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text, author })});
+              b.innerText = 'Reported'; setTimeout(()=> b.innerText = 'Mark FP', 1200);
+            } catch(e){ alert('Report failed'); }
+          });
+        });
+
+      }, 0);
+
+      commentsEl.appendChild(card);
+    }
+  }
+
+  // -------------------------
+  // blocked / safe UI
+  // -------------------------
+  function updateBlockedUI(list){
+    currentBlocked = Array.isArray(list) ? list.slice() : [];
+    blockedListEl.innerHTML = '';
+    if(!currentBlocked.length){ blockedListEl.innerHTML = `<div class="muted">No blocked users</div>`; }
+    else { currentBlocked.forEach(u => {
+        const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.marginBottom='6px';
+        row.innerHTML = `<div style="font-weight:700">${escapeHtml(u)}</div><div><button class="btn small-unblock" data-user="${escapeHtml(u)}">Unblock</button></div>`;
+        blockedListEl.appendChild(row);
+      });
+      blockedListEl.querySelectorAll('.small-unblock').forEach(b => {
+        b.addEventListener('click', async ()=> {
+          const user = b.dataset.user;
+          if(!confirm('Unblock ' + user + '?')) return;
+          try {
+            const r = await fetch('/unblock', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user })});
+            if(r.ok){ const j = await r.json(); updateBlockedUI(j.blocked_users || []); }
+          } catch(e){ console.error(e); }
+        });
+      });
+    }
+    blockedCountEl.innerText = `${currentBlocked.length}`;
+    blockedCountTopEl.innerText = `${currentBlocked.length}`;
+  }
+
+  function updateSafeUI(list){
+    currentSafe = Array.isArray(list) ? list.slice() : [];
+    safeListEl.innerHTML = '';
+    if(!currentSafe.length) safeListEl.innerHTML = '<div class="muted">No safe users</div>';
+    else currentSafe.forEach(u => {
+      const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.marginBottom='6px';
+      row.innerHTML = `<div style="font-weight:700">${escapeHtml(u)}</div><div><button class="btn remove-safe" data-user="${escapeHtml(u)}">Remove</button></div>`;
+      safeListEl.appendChild(row);
+    });
+    safeListEl.querySelectorAll('.remove-safe').forEach(b => {
+      b.addEventListener('click', async ()=> {
+        const user = b.dataset.user;
+        if(!confirm('Remove ' + user + ' from safe list?')) return;
+        try {
+          const r = await fetch('/safe_remove', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user })});
+          if(r.ok){ const j = await r.json(); updateSafeUI(j.safe_users || []); }
+        } catch(e){ console.error(e); }
+      });
+    });
+  }
+
+  addSafeBtn.addEventListener('click', async ()=> {
+    const u = (safeInput.value||'').trim();
+    if(!u) return alert('Enter username');
+    try {
+      const r = await fetch('/safe_add', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user: u })});
+      if(r.ok){ const j = await r.json(); updateSafeUI(j.safe_users || []); safeInput.value=''; } else { const txt = await r.text().catch(()=>null); alert('Failed: ' + (txt||'error')); }
+    } catch(e){ alert('Failed to add safe user'); }
+  });
+
+  // -------------------------
+  // BUTTONS: Export flagged CSV / Clear UI / Download uncertain
+  // -------------------------
+  exportFlagsBtn.addEventListener('click', ()=> {
+    try {
+      const flagged = allComments.filter(x=>x.flagged && !x.safe);
+      if(!flagged.length) return alert('No flagged comments to export.');
+      // CSV: time,author,text,flags,prob
+      const rows = [['time','author','text','flags','prob']];
+      for(const f of flagged){
+        const timeStr = JSON.stringify(f.ts);
+        const author = JSON.stringify(f.author);
+        const text = JSON.stringify((f.text||'').replace(/\n/g,' '));
+        const flags = JSON.stringify((f.reason_list||[]).join(';'));
+        const prob = (f.prob || 0).toString();
+        rows.push([timeStr, author, text, flags, prob]);
+      }
+      const csv = rows.map(r => r.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'flagged_comments.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch(err){
+      console.error(err); alert('Failed to export flagged CSV');
+    }
+  });
+
+  clearCommentsBtn.addEventListener('click', ()=> {
+    if(!confirm('Clear all comments from UI? This does not unblock users or change server state.')) return;
+    allComments = [];
+    commentsEl.innerHTML = '';
+    toxicCount = 0;
+    toxicCountEl.innerText = '0';
+    warnCountEl.innerText = '0';
+    // keep blocked & safe UI as-is
+    const msg = document.createElement('div'); msg.className='muted'; msg.innerText = 'UI cleared'; commentsEl.appendChild(msg);
+  });
+
+  downloadUncertainBtn.addEventListener('click', async ()=> {
+    try {
+      downloadUncertainBtn.disabled = true;
+      downloadUncertainBtn.innerText = 'Downloading...';
+      const r = await fetch('/uncertain_export');
+      if(!r.ok){
+        alert('No uncertain data or server error.');
+        downloadUncertainBtn.disabled = false;
+        downloadUncertainBtn.innerText = 'Download uncertain';
+        return;
+      }
+      const blob = await r.blob();
+      // if server returned JSON (no file) handle gracefully
+      const contentType = blob.type || '';
+      if(contentType.includes('json')){
+        const txt = await blob.text();
+        console.warn('uncertain_export returned json', txt);
+        alert('No uncertain rows or server returned an error.');
+        downloadUncertainBtn.disabled = false;
+        downloadUncertainBtn.innerText = 'Download uncertain';
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'uncertain_export.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      downloadUncertainBtn.disabled = false;
+      downloadUncertainBtn.innerText = 'Download uncertain';
+    } catch(err){
+      console.error(err); alert('Failed to download uncertain');
+      downloadUncertainBtn.disabled = false;
+      downloadUncertainBtn.innerText = 'Download uncertain';
+    }
+  });
+
+  // -------------------------
+  // Other UI controls
+  // -------------------------
+  applyBtn.addEventListener('click', async ()=> {
+    const url = (urlInput.value||'').trim();
+    if(!url) return alert('Enter a YouTube URL');
+    try {
+      statusEl.innerText = 'Applying URL...';
+      const resp = await fetch('/set_video', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url })});
+      if(!resp.ok){ statusEl.innerText = 'Server error'; return; }
+      const j = await resp.json();
+      statusEl.innerText = j.message || 'Video applied';
+      if(evtSource) try{ evtSource.close(); }catch(e){} startSSE();
+    } catch(e){
+      console.error(e);
+      statusEl.innerText = 'Failed to set video';
+      startSSE();
+    }
+  });
+
+  testBtn.addEventListener('click', ()=> { const id = extractYoutubeId(urlInput.value||''); videoIdDisplay.innerText = id || 'Invalid URL'; });
+
+  // -------------------------
+  // Startup
+  // -------------------------
+  startSSE();
+
+  async function refreshStatus(){
+    try {
+      const r = await fetch('/status');
+      if(r.ok){
+        const j = await r.json();
+        smallStatusEl.innerText = `Model: ${j.model_ready ? 'Ready' : 'Not loaded'} · Chat: ${j.chat_created ? 'Running' : 'Not started'}`;
+        updateBlockedUI(j.blocked_users || []);
+        updateSafeUI(j.safe_users || []);
+      } else smallStatusEl.innerText = 'Status unreachable';
+    } catch(e){
+      smallStatusEl.innerText = 'Status unreachable';
+    }
+  }
+  refreshStatus();
+  setInterval(refreshStatus, 15000);
+</script>
+</body>
+</html>
